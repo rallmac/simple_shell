@@ -1,66 +1,70 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <stdlib.h>
-#include <string.h>
-
-#define BUFFER_SIZE 1024
-
-void execute_command(char *command);
+#include "shell.h"
 
 /**
- * main - fork & wait example and interactive command execution
- *
- * Return: Always 0.
+ * free_data - Frees the memory allocated for the data_shell structure.
+ * @datash: Pointer to the data_shell structure to be freed.
+ * Return: void
  */
-int main(void)
+void free_data(data_shell *datash)
 {
-	pid_t child_pid;
-	int status;
-	char buffer[BUFFER_SIZE];
-	char *command;
-	char *argv[] = {"/bin/ls", "-1", "/usr/", NULL};
+	unsigned int i;
 
-	child_pid = fork();
-	if (child_pid == -1)
+	for (i = 0; datash->_environ[i]; i++)
 	{
-		perror("Error:");
-		return (1);
-	}
-	if (child_pid == 0)
-	{
-		printf("Wait for me, wait for me\n");
-		sleep(3);
-
-		printf("Before execve\n");
-		if (execve(argv[0], argv, NULL) == -1)
-		{
-			perror("Error:");
-		}
-		printf("After execve\n");
-	}
-	else
-	{
-		wait(&status);
-		printf("Oh, it's all better now\n");
+		free(datash->_environ[i]);
 	}
 
-	while (1)
+	free(datash->_environ);
+	free(datash->pid);
+}
+
+/**
+ * set_data - Initializes the data_shell structure with
+ * provided arguments and environment variables.
+ * @datash: Pointer to the data_shell structure to be initialized.
+ * @av: Array of strings representing command-line arguments.
+ * Return: void
+ */
+void set_data(data_shell *datash, char **av)
+{
+	unsigned int i;
+
+	datash->av = av;
+	datash->input = NULL;
+	datash->args = NULL;
+	datash->status = 0;
+	datash->counter = 1;
+
+	for (i = 0; environ[i]; i++)
+		;
+
+	datash->_environ = malloc(sizeof(char *) * (i + 1));
+
+	for (i = 0; environ[i]; i++)
 	{
-		printf("$ ");
-		if (!fgets(buffer, BUFFER_SIZE, stdin))
-	{
-		printf("\n");
-		break;
+		datash->_environ[i] = _strdup(environ[i]);
 	}
 
-	command = strtok(buffer, "\n");
-	if (!command)
-		continue;
+	datash->_environ[i] = NULL;
+	datash->pid = aux_itoa(getpid());
+}
 
-	execute_command(command);
-	}
+/**
+ * main - Entry point of the shell program.
+ * @ac: Number of command-line arguments.
+ * @av: Array of strings representing command-line arguments.
+ * Return: Integer representing the exit status of the shell program.
+ */
+int main(int ac, char **av)
+{
+	data_shell datash;
+	(void) ac;
 
-	return (0);
+	signal(SIGINT, get_sigint);
+	set_data(&datash, av);
+	shell_loop(&datash);
+	free_data(&datash);
+	if (datash.status < 0)
+		return (255);
+	return (datash.status);
 }
